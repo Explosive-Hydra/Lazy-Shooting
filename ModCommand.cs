@@ -1,98 +1,207 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
-using System.Reflection;
+using System.Linq;
 using BepInEx.Configuration;
 using BepInEx.Logging;
 using HarmonyLib;
 using MossLib;
 using MossLib.Base;
-using UnityEngine;
+using MossLib.Tool;
 
 namespace LazyShooting;
 
+[HarmonyPatch(typeof(ConsoleScript))]
 public class ModCommand : ModCommandBase
 {
-    private static ModCommand _instance;
-    private static ModCommand Instance { get; set; } = new();
-    private const string LocalePre = "command.lazyshooting.";
-    private const string LocalePreType = LocalePre + "type.";
+    private new static readonly ManualLogSource Logger = Plugin.Logger;
+    private const string LocaleKeyPre = "command.lazyshooting.";
+    private static bool _autofillRegistered;
+    private static List<string> _cachedConfigNames = [];
 
-    public static void Initialize(ManualLogSource logger)
+    [HarmonyPatch("RegisterAllCommands")]
+    [HarmonyPostfix]
+    public static void RegisterCustomCommands(ConsoleScript __instance)
     {
-        if (_instance != null)
-            return;
-        _instance = new ModCommand();
-        Instance = _instance;
-        _instance.Initialize(logger, Plugin.Guid, Plugin.Name, Assembly.GetExecutingAssembly());
-    }
-
-    [HarmonyPatch(typeof(ConsoleScript), "RegisterAllCommands")]
-    public class ConsoleScriptRegisterAllCommandsPatcher
-    {
-        [HarmonyPostfix]
-        // ReSharper disable once UnusedMember.Global
-        // ReSharper disable once InconsistentNaming
-        public static void RegisterCustomCommands(ConsoleScript __instance)
+        try
         {
-            void Action(string[] args)
+            var argAutofill = new Dictionary<int, List<string>>
             {
-                Tools.CheckArgumentCount(args, 1);
-                switch (args[1])
                 {
-                    case "ammunitionui":
-                        SwitchType(Plugin.AmmunitionUi, "ammunitionui", __instance);
-                        break;
-                    case "autosrack":
-                        SwitchType(Plugin.AutoRack, "autosrack",  __instance);
-                        break;
-                    case "indestructiblegun":
-                        SwitchType(Plugin.IndestructibleGun, "indestructiblegun",  __instance);
-                        break;
-                    case "infiniteammunition":
-                        SwitchType(Plugin.InfiniteAmmunition, "infiniteammunition",  __instance);
-                        break;
-                    case "neverjam":
-                        SwitchType(Plugin.NeverJam, "neverjam",  __instance);
-                        break;
-                    case "recoiless":
-                        SwitchType(Plugin.Recoiless, "recoiless",  __instance);
-                        break;
-                    default:
-                        throw new Exception(ModLocale.GetFormat($"{LocalePreType}exception"));
+                    0,
+                    [
+                        "ammunition_ui",
+                        "auto_rock",
+                        "indestructible_gun",
+                        "infinite_ammunition",
+                        "never_jam",
+                        "recoilless"
+                    ]
                 }
-            }
-            Dictionary<int, List<string>> argAutofill2 = new Dictionary<int, List<string>>
-            { { 0, [
-                "ammunitionui",
-                "autosrack",
-                "indestructiblegun",
-                "infiniteammunition",
-                "neverjam",
-                "recoiless"
-            ] } };
-            (string, string)[] valueTupleArray =
-            [
-                ("type", ModLocale.GetFormat($"{LocalePreType}name"))
-            ];
-            Command lazyshooting = new Command("lazyshooting", ModLocale.GetFormat($"{LocalePre}description"), Action, argAutofill2, valueTupleArray);
-            ConsoleScript.Commands.Add(lazyshooting);
+            };
+
+            var paramDescriptions = new[]
+            {
+                ("string", Locale("parameter"))
+            };
+
+            ConsoleScript.Commands.Add(new Command(
+                "lazyshooting",
+                Locale("description"),
+                ExecuteCommand,
+                new Dictionary<int, List<string>>(argAutofill),
+                paramDescriptions)
+            );
+
+            RegisterDynamicAutoFills();
+        }
+        catch (Exception ex)
+        {
+            Error("register_failed", ex.Message, ex.StackTrace);
         }
     }
 
-    [HarmonyPatch(typeof(ConsoleScript), "Awake")]
-    public new class ConsoleScriptAwakePatcher
+    private static void RegisterDynamicAutoFills()
     {
-        [HarmonyPostfix]
-        // ReSharper disable once UnusedMember.Global
-        public static void AddCustomLogCallback()
+        if (_autofillRegistered)
+            return;
+
+        var targetCommands = ConsoleScript.Commands
+            .Where(c => c != null && c.action == ExecuteCommand)
+            .ToList();
+
+        if (targetCommands.Count == 0)
+            return;
+
+        _cachedConfigNames = Plugin.ConfigRegistry.Keys.ToList();
+
+        _autofillRegistered = true;
+    }
+
+    [HarmonyPatch("HandleDescriptionText")]
+    [HarmonyPrefix]
+    private static void PreHandleDescriptionText(string[] args)
+    {
+        UpdateAutofillContext(args);
+    }
+
+    [HarmonyPatch("TryFinishCommandPart")]
+    [HarmonyPrefix]
+    private static void PreTryFinishCommandPart(string[] args)
+    {
+        UpdateAutofillContext(args);
+    }
+
+    private static void UpdateAutofillContext(string[] args)
+    {
+        if (args == null || args.Length < 2)
+            return;
+
+        string cmdName = args[0];
+        if (cmdName != "lazyshooting")
+            return;
+
+        var cmd = ConsoleScript.SearchExact(cmdName);
+        if (cmd?.argAutofill == null)
+            return;
+
+        int key = args.Length - 2;
+        if (key != 1)
+            return;
+
+        var contextList = new List<string>();
+        string subcommand = args[1].ToLower();
+
+        if (!string.IsNullOrEmpty(subcommand) && _cachedConfigNames.Count > 0)
         {
-            Application.logMessageReceived += Instance.ApplicationLogCallback;
+            contextList.AddRange(
+                _cachedConfigNames.Where(name =>
+                    name.StartsWith(subcommand, StringComparison.OrdinalIgnoreCase))
+            );
+        }
+
+        cmd.argAutofill[key] = contextList;
+    }
+
+    private static void ExecuteCommand(string[] args)
+    {
+        if (args.Length == 1)
+        {
+            ListConfigs();
+        }
+        else
+        {
+            try
+            {
+                ToggleConfig(args[1]);
+            }
+            catch (Exception ex)
+            {
+                Error("unknown", args[1]);
+            }
         }
     }
-    
-    private static void SwitchType(ConfigEntry<bool> configEntry, string configName, ConsoleScript consoleScript)
+
+    private static void ListConfigs()
     {
-        Tools.SwitchType(Plugin.Guid, configEntry, ModLocale.GetFormat($"{LocalePreType}{configName}", configName), Plugin.Logger, consoleScript);
-        ModConfigs.Update();
+        Log.Divider();
+        Info("help_header");
+
+        foreach (var kvp in Plugin.ConfigRegistry)
+        {
+            string key = kvp.Key;
+            string displayName = ConfigDisplayName(key);
+            object value = kvp.Value.BoxedValue;
+            string description = ModLocale.GetFormat($"config.{key}.description");
+            Info("help_item", displayName, key, value);
+            Log.Info($"        {description}", Logger);
+        }
+
+        Log.Divider();
+    }
+
+    private static void ToggleConfig(string key)
+    {
+        if (!Plugin.ConfigRegistry.TryGetValue(key, out var entry))
+        {
+            Info("unknown", key);
+            return;
+        }
+
+        if (entry.SettingType == typeof(bool))
+        {
+            bool newValue = !(bool)entry.BoxedValue;
+            entry.BoxedValue = newValue;
+            entry.ConfigFile?.Save();
+
+            string displayName = ConfigDisplayName(key);
+            Info("toggle", displayName, key, newValue);
+        }
+        else
+        {
+            Info("unknown", key);
+        }
+    }
+
+    private static string ConfigDisplayName(string key)
+    {
+        var name = ModLocale.GetFormat($"config.{key}.name");
+        return string.IsNullOrEmpty(name) || name.StartsWith("config.")
+            ? key
+            : name;
+    }
+
+    private static void Info(string key, params object[] args)
+    {
+        Log.Info(Locale(key, args), Logger);
+    }
+
+    private static void Error(string key, params object[] args)
+    {
+        Log.Error(Locale(key, args), Logger);
+    }
+
+    private static string Locale(string key, params object[] args)
+    {
+        return ModLocale.GetFormat($"{LocaleKeyPre}{key}", args);
     }
 }
