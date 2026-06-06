@@ -7,7 +7,7 @@ namespace LazyShooting;
 public class ModLocale : ModLocaleBase
 {
     private static ModLocale _instance;
-    
+
     public static void Initialize(ManualLogSource logger)
     {
         if (_instance != null)
@@ -15,7 +15,7 @@ public class ModLocale : ModLocaleBase
         _instance = new ModLocale();
         _instance.Initialize(logger, Assembly.GetExecutingAssembly());
     }
-    
+
     public static string GetFormat(string key, params object[] args)
     {
         return _instance.GetStringFormatted(key, args);

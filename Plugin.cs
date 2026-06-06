@@ -28,20 +28,21 @@ public class Plugin : BaseUnityPlugin
     public void Awake()
     {
         Logger = base.Logger;
+        
+        LocaleGenerator.SetLogger(Logger);
+        LocaleGenerator.Register(new EnLangGenerator(), Logger);
+        LocaleGenerator.Register(new ZhCnLangGenerator(), Logger);
+        LocaleGenerator.GenerateAll();
+        
         _harmony.PatchAll();
         ModLocale.Initialize(Logger);
-
+        
         AmmunitionUi = RegisterConfig("ammunition_ui", true);
         AutoRack = RegisterConfig("auto_rock", false);
         IndestructibleGun = RegisterConfig("indestructible_gun", false);
         InfiniteAmmunition = RegisterConfig("infinite_ammunition", false);
         NeverJam = RegisterConfig("never_jam", false);
         Recoilless = RegisterConfig("recoilless", false);
-        
-        LocaleGenerator.SetLogger(Logger);
-        LocaleGenerator.Register(new EnLangGenerator(), Logger);
-        LocaleGenerator.Register(new ZhCnLangGenerator(), Logger);
-        LocaleGenerator.GenerateAll();
     }
 
     private ConfigEntry<T> RegisterConfig<T>(string key, T defaultValue)
