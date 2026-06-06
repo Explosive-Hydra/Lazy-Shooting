@@ -9,12 +9,14 @@ using MossLib.Tool;
 namespace LazyShooting;
 
 [BepInDependency("org.explosivehydra.mosslib")]
-[BepInPlugin(Guid, Name, "1.1.0")]
+[BepInPlugin(Guid, Name, Version)]
 public class Plugin : BaseUnityPlugin
 {
     internal new static ManualLogSource Logger;
     public const string Guid = "org.explosivehydra.lazyshooting";
     public const string Name = "Lazy Shooting";
+    public const string Version = "1.1.0";
+    
     private readonly Harmony _harmony = new(Guid);
     internal static readonly Dictionary<string, ConfigEntryBase> ConfigRegistry = new();
 
