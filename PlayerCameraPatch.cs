@@ -1,4 +1,4 @@
-﻿using System.Linq;
+using System.Linq;
 using HarmonyLib;
 using TMPro;
 using UnityEngine;
@@ -13,6 +13,16 @@ public class PlayerCameraPatch
     private static GameObject _ammunitionUiObject;
     private static int _remainingAmmunition;
     private static int _maximumAmmunition;
+
+    private static TMP_FontAsset GameFont
+    {
+        get
+        {
+            field = Resources.FindObjectsOfTypeAll<TMP_FontAsset>().FirstOrDefault(f
+                => f.name.Contains("Retro Gaming SDF"));
+            return field;
+        }
+    }
 
     [HarmonyPatch("HandleGunMenu")]
     [HarmonyPostfix]
@@ -73,6 +83,8 @@ public class PlayerCameraPatch
 
             _ammunitionText = gameObject.AddComponent<TextMeshProUGUI>();
             _ammunitionText.alignment = TextAlignmentOptions.Center;
+
+            _ammunitionText.font = GameFont;
         }
 
         Vector2 gunMenuPos = GetGunMenuPosition(camera);
@@ -118,7 +130,7 @@ public class PlayerCameraPatch
         }
         else
         {
-            _ammunitionText.fontSize = 128;
+            _ammunitionText.fontSize = 64;
             _ammunitionText.color = Color.black;
             _ammunitionText.text = "∞";
         }
