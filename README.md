@@ -1,3 +1,7 @@
+# This project is no longer in develop, please use the [Quantum](https://github.com/CNCUMC/Quantum).
+# This project is no longer in develop, please use the [Quantum](https://github.com/CNCUMC/Quantum).
+# This project is no longer in develop, please use the [Quantum](https://github.com/CNCUMC/Quantum).
+
 ![Cover](Cover.png)
 
 __English Guide__ | [中文指南](README_ZH.md)
