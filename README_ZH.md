@@ -1,3 +1,7 @@
+# 该项目已不再开发，请使用[量子](https://github.com/CNCUMC/Quantum)。
+# 该项目已不再开发，请使用[量子](https://github.com/CNCUMC/Quantum)。
+# 该项目已不再开发，请使用[量子](https://github.com/CNCUMC/Quantum)。
+
 ![](Cover.png)
 
 [English Guide](README.md) | __中文指南__
